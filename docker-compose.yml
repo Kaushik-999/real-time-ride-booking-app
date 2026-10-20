@@ -1,0 +1,123 @@
+# Local development stack: MongoDB (single-node replica set), backend API,
+# recovery worker and the Vite frontend.
+#
+#   docker compose up --build -d
+#   docker compose logs -f backend
+#   docker compose down            # keeps database data
+#   docker compose down -v         # DELETES the mongo-data volume (all local data)
+
+name: uber-clone
+
+services:
+  mongo:
+    image: mongo:7.0
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27017:27017"
+    environment:
+      # Name other containers use to reach this member. Must match the
+      # hostname used in MONGO_URI for the backend.
+      MONGO_RS_HOST: mongo:27017
+    volumes:
+      - mongo-data:/data/db
+      - ./mongo/init-replica-set.js:/scripts/init-replica-set.js:ro
+    healthcheck:
+      # Initialises the replica set on first run, then reports healthy
+      # only once this node is PRIMARY.
+      test: ["CMD", "mongosh", "--quiet", "--file", "/scripts/init-replica-set.js"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./server
+      target: dev
+    command: ["npm", "run", "dev"]
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      # Inside a container "localhost" is the container itself, so we use the
+      # Compose service name "mongo" to reach the database container.
+      MONGO_URI: mongodb://mongo:27017/uber?replicaSet=rs0
+      CORS_ORIGINS: http://localhost:5173
+      RUN_WORKER_IN_PROCESS: "false"
+      # Private, encrypted driver documents (never served over HTTP).
+      DOCUMENT_STORAGE_DIR: /app/private-uploads
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./server/src:/app/src
+      - ./server/scripts:/app/scripts
+      - ./server/tests:/app/tests
+      - driver-documents:/app/private-uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    stop_grace_period: 20s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./server
+      target: dev
+    command: ["npm", "run", "worker:dev"]
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      NODE_ENV: development
+      MONGO_URI: mongodb://mongo:27017/uber?replicaSet=rs0
+      DOCUMENT_STORAGE_DIR: /app/private-uploads
+    volumes:
+      - ./server/src:/app/src
+      - driver-documents:/app/private-uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+    stop_grace_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./client
+      target: dev
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+    environment:
+      # The Vite dev server (inside the container) proxies /api and /socket.io
+      # to the backend container by its service name.
+      VITE_PROXY_TARGET: http://backend:4000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client/src:/app/src
+      - ./client/index.html:/app/index.html
+      - ./client/public:/app/public
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    stop_grace_period: 10s
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
+  # Encrypted driver identity/vehicle documents. Deleting this volume deletes them.
+  driver-documents:

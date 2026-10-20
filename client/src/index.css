@@ -1,0 +1,75 @@
+@import 'leaflet/dist/leaflet.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-chalk text-asphalt font-sans antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 3px solid #1f2933;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Ride status reads like a road sign: heavy, condensed, unmissable. */
+  .sign {
+    font-weight: 850;
+    font-stretch: 70%;
+    font-variation-settings: 'wdth' 70;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-rickshaw text-asphalt hover:bg-[#E5B70F];
+  }
+  .btn-dark {
+    @apply btn bg-asphalt text-chalk hover:bg-black;
+  }
+  .btn-quiet {
+    @apply btn border border-line bg-white text-asphalt hover:border-asphalt;
+  }
+  .btn-danger {
+    @apply btn border border-brake text-brake hover:bg-brake hover:text-white;
+  }
+  .field {
+    @apply w-full rounded-md border border-line bg-white px-3 py-2 text-asphalt placeholder:text-fog focus:border-asphalt focus:outline-none;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-asphalt;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* The searching ring pulses slowly: the one deliberate animation. */
+@keyframes ring-breathe {
+  0%,
+  100% {
+    stroke-opacity: 0.9;
+  }
+  50% {
+    stroke-opacity: 0.35;
+  }
+}
+.ring-active {
+  animation: ring-breathe 1.8s ease-in-out infinite;
+}

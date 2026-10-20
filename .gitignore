@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+
+# Secrets: only .env.example (placeholders) is committed.
+.env
+.env.*
+!.env.example
+
+# Local browser-automation artefacts
+.playwright-mcp/
+
+# Local document storage when running the server outside Docker
+server/private-uploads/
